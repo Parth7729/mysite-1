@@ -1,9 +1,14 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.core.paginator import Paginator
 
 from main.models import Post
 
 from main.forms import ContactForm
+
+from django.core.mail import EmailMessage
+from django.conf import settings as conf_settings
+
+from django.contrib import messages
 
 
 # Create your views here.
@@ -12,7 +17,7 @@ def index(request):
 
 
 def blog(request):
-    posts = Post.objects.all()
+    posts = Post.objects.all().order_by('-posted_date')
     paginator = Paginator(posts, 2)
 
     page_number = request.GET.get('page')
@@ -23,7 +28,7 @@ def blog(request):
 
 
 def post(request, post_id=None):
-    post = Post.objects.get(id=post_id)
+    post = get_object_or_404(Post, id=post_id)
     context = {'post': post}
     return render(request, 'main/post.html', context)
 
@@ -31,7 +36,22 @@ def post(request, post_id=None):
 def contact(request):
     form = ContactForm(request.POST or None)
     if form.is_valid():
+        instance = form.save(commit=False)
+
+        name = instance.name
+        email = instance.email
+        message = instance.message
+
+        EmailMessage(
+            'New message from %s' %name,
+            'Hi admin, new message form this email address: %s\n\n Message: %s' %(email, message),
+            conf_settings.EMAIL_HOST_USER,
+            ['a.s.2013.hts@gmail.com', ],
+        ).send()
+
         form.save()
+
+        messages.success(request, 'Your message has been sent!')
 
         return redirect('contact')
 
